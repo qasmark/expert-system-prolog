@@ -3,7 +3,6 @@
 
 run_semantic_analysis :-
     findall(Id, current_selection(Id), Selection),
-    % Проверяем, есть ли вообще что анализировать
     ( Selection == [] ->
         writeln('Выборка пуста. Гипотезы не могут быть проверены.'), !
     ;

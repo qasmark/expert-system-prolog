@@ -6,8 +6,8 @@ parent(api_error, dev_needed).
 parent(critical_priority, long_resolution).
 parent(dev_needed, long_resolution).
 
-p(vip_client, 0.1).      % 10% клиентов - VIP
-p(api_error, 0.2).       % 20% всех проблем - ошибки API
+p(vip_client, 0.1). % 10% клиентов - VIP
+p(api_error, 0.2). % 20% всех проблем - ошибки API
 
 p(critical_priority, [vip_client, api_error], 0.9).
 p(critical_priority, [vip_client, not(api_error)], 0.5).

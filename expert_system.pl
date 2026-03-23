@@ -47,26 +47,22 @@ status_name(rework, 'На доработке').
 
 start :-
     writeln(' Этап 1: Фильтрация тикетов '),
-    % Очищаем предыдущие выборки перед новым запуском
     retractall(current_selection(_)),
-    
-    % Задаем вопросы и получаем критерии
+
     ask_problem(Problem),
     ask_priority(Priority),
     ask_channel(Channel),
     ask_client(Client),
     ask_status(Status),
     
-    % Находим и сохраняем тикеты
     find_and_save_tickets(Problem, Priority, Channel, Client, Status),
     
     nl,
     writeln(' Результаты фильтрации '),
-    print_selection, % Показываем пользователю, что нашли
+    print_selection,
     
     nl,
     writeln(' Этап 2: Семантический анализ выборки '),
-    % Запускаем Модуль 2
     run_semantic_analysis.
 
 
@@ -181,7 +177,6 @@ find_and_save_tickets(TargetProb, TargetPrio, TargetChan, TargetCli, TargetStat)
         match_attr(TargetCli, Cli),
         match_attr(TargetStat, Stat)
     ), Results),
-    % Сохраняем каждый найденный ID в базу данных
     forall(member(TicketId, Results), assertz(current_selection(TicketId))).
 
 print_selection :-
