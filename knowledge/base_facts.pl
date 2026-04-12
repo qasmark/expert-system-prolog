@@ -3,9 +3,13 @@
     question/3,
     node_question/2,
     node_branch/3,
+    frame_parent/2,
+    frame_slot/3,
     case_info/4,
     case_property/3
 ]).
+
+:- use_module(library(lists)).
 
 root_node(root).
 
@@ -59,54 +63,96 @@ node_branch(three_ds_node, expired, leaf(user_payment_error)).
 node_branch(three_ds_node, sent, leaf(api_integration_error)).
 node_branch(three_ds_node, not_requested, leaf(api_integration_error)).
 
-case_info(
-    api_integration_error,
-    "Ошибка API/интеграции",
-    "Система видит признаки проблемы в контракте API, формате запроса или обработке интеграционного ответа.",
-    "Проверить ID мерчанта, метод API, HTTP-код, тело запроса и сопоставить их с контрактом интеграции. Если ошибка воспроизводится, эскалировать в команду интеграции."
-).
-case_info(
-    anti_fraud_block,
-    "Блокировка аккаунта антифродом",
-    "Платеж отклоняется внутренними правилами безопасности или антифрод-модулем.",
-    "Уточнить ID пользователя, маску карты, причину срабатывания и сумму транзакции. Проверить антифрод-правила, историю пользователя и при необходимости передать запрос в риск-команду."
-).
-case_info(
-    gateway_sbp_failure,
-    "Массовый сбой шлюза СБП",
-    "Наблюдается массовый инцидент на стороне шлюза или внешнего канала СБП.",
-    "Проверить тип банка-эквайера, место сбоя и тип ошибки в мониторинге. Зафиксировать массовость, оповестить дежурную смену и открыть инцидент на шлюз СБП."
-).
-case_info(
-    user_payment_error,
-    "Ошибка оплаты пользователя",
-    "Проблема локализована на одной оплате или у ограниченного числа пользователей и чаще связана с эмитентом или 3-D Secure.",
-    "Уточнить код ответа банка-эмитента, статус СМС-подтверждения, маску карты и ID пользователя. Проверить ограничения банка, доступность 3-D Secure и дать пользователю инструкцию по повторной попытке."
-).
-case_info(
-    unknown_situation,
-    "Неопределенная ситуация",
-    "По текущим ответам в дереве нет подходящего листа.",
-    "Соберите недостающие признаки и при подтверждении нового сценария добавьте новый кейс в обучаемую базу."
-).
+frame_parent(api_integration_error, integration_case).
+frame_parent(anti_fraud_block, user_payment_case).
+frame_parent(user_payment_error, user_payment_case).
+frame_parent(gateway_sbp_failure, mass_incident_case).
+frame_parent(unknown_situation, generic_support_case).
 
-case_property(api_integration_error, "ID мерчанта", "Помогает локализовать интеграцию и проверить настройки мерчанта.").
-case_property(api_integration_error, "Метод API", "Нужно понять, на каком API-методе воспроизводится ошибка.").
-case_property(api_integration_error, "Код ответа HTTP", "Позволяет быстро отделить клиентскую ошибку от серверной.").
-case_property(api_integration_error, "Тело запроса", "Нужно для проверки обязательных полей и формата payload.").
+frame_slot(generic_support_case, title, "Неопределенная ситуация").
+frame_slot(generic_support_case, explanation, "По текущим ответам в дереве нет подходящего листа.").
+frame_slot(generic_support_case, recommendation, "Соберите недостающие признаки и при подтверждении нового сценария добавьте новый кейс в обучаемую базу.").
 
-case_property(anti_fraud_block, "ID пользователя", "Нужен для поиска истории срабатываний и связанных рисков.").
-case_property(anti_fraud_block, "Маска карты", "Помогает проверить повторяемость блокировок по платежному инструменту.").
-case_property(anti_fraud_block, "Причина срабатывания", "Ключевой классификатор для антифрод-решения.").
-case_property(anti_fraud_block, "Сумма транзакции", "Часто участвует в антифрод-правилах и порогах.").
+frame_slot(integration_case, property(merchant_id), property("ID мерчанта", "Помогает локализовать интеграцию и проверить настройки мерчанта.")).
+frame_slot(integration_case, property(api_method), property("Метод API", "Нужно понять, на каком API-методе воспроизводится ошибка.")).
+frame_slot(integration_case, property(http_status), property("Код ответа HTTP", "Базовый индикатор того, в каком слое возникла ошибка.")).
 
-case_property(gateway_sbp_failure, "Тип банка-эквайера", "Нужен для понимания, есть ли зависимость от конкретного провайдера.").
-case_property(gateway_sbp_failure, "Место сбоя", "Позволяет отличить сбой шлюза от внутренних ошибок маршрутизации.").
-case_property(gateway_sbp_failure, "Тип ошибки", "Уточняет технический характер инцидента.").
-case_property(gateway_sbp_failure, "Массовость", "Подтверждает, что это системный, а не точечный кейс.").
+frame_slot(user_payment_case, property(issuer_response_code), property("Код ответа банка-эмитента", "Основной индикатор причины пользовательского отказа.")).
+frame_slot(user_payment_case, property(sms_3ds_status), property("Статус СМС-подтверждения", "Позволяет отделить эмитентский отказ от проблемы 3-D Secure.")).
+frame_slot(user_payment_case, property(card_mask), property("Маска карты", "Нужна для корреляции повторных обращений.")).
+frame_slot(user_payment_case, property(user_id), property("ID пользователя", "Помогает проверить историю обращения пользователя.")).
 
-case_property(user_payment_error, "Код ответа банка-эмитента", "Основной индикатор причины пользовательского отказа.").
-case_property(user_payment_error, "Статус СМС-подтверждения", "Позволяет отделить эмитентский отказ от проблемы 3-D Secure.").
-case_property(user_payment_error, "Маска карты", "Нужна для корреляции повторных обращений.").
-case_property(user_payment_error, "ID пользователя", "Нужен для проверки истории и связи с другими обращениями.").
+frame_slot(mass_incident_case, property(issue_scope), property("Массовость", "Подтверждает, что это системный, а не точечный кейс.")).
+frame_slot(mass_incident_case, property(failure_scope), property("Место сбоя", "Нужно локализовать, на каком участке цепочки проявляется инцидент.")).
+
+frame_slot(api_integration_error, title, "Ошибка API/интеграции").
+frame_slot(api_integration_error, explanation, "Система видит признаки проблемы в контракте API, формате запроса или обработке интеграционного ответа.").
+frame_slot(api_integration_error, recommendation, "Проверить ID мерчанта, метод API, HTTP-код, тело запроса и сопоставить их с контрактом интеграции. Если ошибка воспроизводится, эскалировать в команду интеграции.").
+frame_slot(api_integration_error, property(http_status), property("Код ответа HTTP", "Позволяет быстро отделить клиентскую ошибку от серверной.")).
+frame_slot(api_integration_error, property(request_body), property("Тело запроса", "Нужно для проверки обязательных полей и формата payload.")).
+
+frame_slot(anti_fraud_block, title, "Блокировка аккаунта антифродом").
+frame_slot(anti_fraud_block, explanation, "Платеж отклоняется внутренними правилами безопасности или антифрод-модулем.").
+frame_slot(anti_fraud_block, recommendation, "Уточнить ID пользователя, маску карты, причину срабатывания и сумму транзакции. Проверить антифрод-правила, историю пользователя и при необходимости передать запрос в риск-команду.").
+frame_slot(anti_fraud_block, property(user_id), property("ID пользователя", "Нужен для поиска истории срабатываний и связанных рисков.")).
+frame_slot(anti_fraud_block, property(trigger_reason), property("Причина срабатывания", "Ключевой классификатор для антифрод-решения.")).
+frame_slot(anti_fraud_block, property(transaction_amount), property("Сумма транзакции", "Часто участвует в антифрод-правилах и порогах.")).
+
+frame_slot(gateway_sbp_failure, title, "Массовый сбой шлюза СБП").
+frame_slot(gateway_sbp_failure, explanation, "Наблюдается массовый инцидент на стороне шлюза или внешнего канала СБП.").
+frame_slot(gateway_sbp_failure, recommendation, "Проверить тип банка-эквайера, место сбоя и тип ошибки в мониторинге. Зафиксировать массовость, оповестить дежурную смену и открыть инцидент на шлюз СБП.").
+frame_slot(gateway_sbp_failure, property(acquirer_bank_type), property("Тип банка-эквайера", "Нужен для понимания, есть ли зависимость от конкретного провайдера.")).
+frame_slot(gateway_sbp_failure, property(failure_scope), property("Место сбоя", "Позволяет отличить сбой шлюза от внутренних ошибок маршрутизации.")).
+frame_slot(gateway_sbp_failure, property(error_type), property("Тип ошибки", "Уточняет технический характер инцидента.")).
+
+frame_slot(user_payment_error, title, "Ошибка оплаты пользователя").
+frame_slot(user_payment_error, explanation, "Проблема локализована на одной оплате или у ограниченного числа пользователей и чаще связана с эмитентом или 3-D Secure.").
+frame_slot(user_payment_error, recommendation, "Уточнить код ответа банка-эмитента, статус СМС-подтверждения, маску карты и ID пользователя. Проверить ограничения банка, доступность 3-D Secure и дать пользователю инструкцию по повторной попытке.").
+
+case_info(CaseId, Title, Explanation, Recommendation) :-
+    inherited_frame_slot(CaseId, title, Title),
+    inherited_frame_slot(CaseId, explanation, Explanation),
+    inherited_frame_slot(CaseId, recommendation, Recommendation).
+
+case_property(CaseId, Label, Hint) :-
+    inherited_case_properties(CaseId, Properties),
+    member(property(Label, Hint), Properties).
+
+inherited_frame_slot(Frame, Slot, Value) :-
+    frame_slot(Frame, Slot, Value),
+    !.
+inherited_frame_slot(Frame, Slot, Value) :-
+    frame_parent(Frame, Parent),
+    inherited_frame_slot(Parent, Slot, Value).
+
+inherited_case_properties(Frame, Properties) :-
+    frame_lineage(Frame, Lineage),
+    foldl(merge_frame_properties, Lineage, [], PropertyPairs),
+    property_values(PropertyPairs, Properties).
+
+frame_lineage(Frame, Lineage) :-
+    ( frame_parent(Frame, Parent) ->
+        frame_lineage(Parent, ParentLineage),
+        append(ParentLineage, [Frame], Lineage)
+    ; Lineage = [Frame]
+    ).
+
+merge_frame_properties(Frame, Acc0, Acc) :-
+    findall(Key-Property, frame_slot(Frame, property(Key), Property), FrameProperties),
+    foldl(upsert_property, FrameProperties, Acc0, Acc).
+
+upsert_property(Key-Property, Acc0, Acc) :-
+    remove_property_key(Key, Acc0, Filtered),
+    append(Filtered, [Key-Property], Acc).
+
+remove_property_key(_, [], []).
+remove_property_key(Key, [Key-_|Rest], Filtered) :-
+    !,
+    remove_property_key(Key, Rest, Filtered).
+remove_property_key(Key, [Pair|Rest], [Pair|Filtered]) :-
+    remove_property_key(Key, Rest, Filtered).
+
+property_values([], []).
+property_values([_-Property|Rest], [Property|Values]) :-
+    property_values(Rest, Values).
 
