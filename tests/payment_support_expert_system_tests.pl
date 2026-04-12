@@ -1,6 +1,7 @@
 :- begin_tests(payment_support_expert_system).
 
 :- use_module('../payment_support_expert_system.pl').
+:- use_module('../knowledge/base_facts.pl').
 :- use_module('../knowledge/learned_facts.pl').
 :- use_module(library(filesex)).
 :- use_module(library(readutil)).
@@ -63,6 +64,20 @@ test(route_anti_fraud_case, [setup(cleanup_state), cleanup(cleanup_state)]) :-
     remember_answer(decline_reason_kind, anti_fraud),
     diagnose(CaseId),
     assertion(CaseId == anti_fraud_block).
+
+test(frame_properties_inherit_and_override, [setup(cleanup_state), cleanup(cleanup_state)]) :-
+    assertion(case_property(anti_fraud_block, "Маска карты", "Нужна для корреляции повторных обращений.")),
+    assertion(case_property(anti_fraud_block, "ID пользователя", "Нужен для поиска истории срабатываний и связанных рисков.")),
+    assertion(\+ case_property(anti_fraud_block, "ID пользователя", "Помогает проверить историю обращения пользователя.")).
+
+test(bayesian_probability_is_calculated_for_selected_case, [setup(cleanup_state), cleanup(cleanup_state)]) :-
+    remember_answer(mass_issue, yes),
+    remember_answer(http_status_family, http_5xx),
+    diagnose(CaseId),
+    diagnosis_confidence(CaseId, Probability),
+    assertion(CaseId == gateway_sbp_failure),
+    assertion(Probability > 0.80),
+    assertion(Probability < 1.0).
 
 test(learned_branch_is_added_via_assertz, [setup(cleanup_state), cleanup(cleanup_state)]) :-
     seed_manual_bank_hold,

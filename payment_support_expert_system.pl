@@ -3,6 +3,8 @@
     admin_menu/0,
     diagnose/1,
     diagnose/2,
+    diagnosis_confidence/2,
+    diagnosis_confidence/3,
     reset_session/0,
     remember_answer/2,
     clear_answer/1,
@@ -20,6 +22,7 @@
 :- use_module(library(lists)).
 :- use_module(library(readutil)).
 :- use_module('knowledge/base_facts.pl', []).
+:- use_module('knowledge/bayesian_facts.pl', [bayesian_symptom/1, diagnosis_probability/3]).
 :- use_module('knowledge/learned_facts.pl', []).
 
 :- dynamic known_answer/2.
@@ -196,7 +199,7 @@ load_learned_knowledge(Path) :-
 print_banner :-
     nl,
     writeln("Экспертная система поддержки платежной системы"),
-    writeln("Система задает уточняющие вопросы и выдает наиболее вероятный кейс."),
+    writeln("Система задает уточняющие вопросы, выдает наиболее вероятный кейс и оценивает его вероятность по Байесу."),
     writeln("Если рекомендация не подходит, можно дообучить дерево новым признаком."),
     nl.
 
@@ -235,9 +238,14 @@ ask_question(QuestionId, Answer) :-
 
 show_diagnosis(CaseId, Path) :-
     kb_case_info(CaseId, Title, Explanation, Recommendation),
+    ( diagnosis_confidence_percent(CaseId, Percent) -> true ; true ),
     nl,
     writeln("Скорее всего, ситуация такая:"),
     format("  ~w~n", [Title]),
+    ( nonvar(Percent) ->
+        format("  Вероятность диагноза по Байесовской сети: ~1f%~n", [Percent])
+    ; true
+    ),
     nl,
     writeln("Почему система так решила:"),
     print_path(Path),
@@ -265,6 +273,28 @@ maybe_learn(CaseId, Path) :-
         writeln("Кейс подтвержден.")
     ; learn_from_console(Path, CaseId)
     ).
+
+diagnosis_confidence(CaseId, Probability) :-
+    known_bayesian_evidence(Evidence),
+    diagnosis_confidence(CaseId, Evidence, Probability).
+
+diagnosis_confidence(CaseId, Evidence, Probability) :-
+    diagnosis_probability(CaseId, Evidence, Probability),
+    !.
+
+known_bayesian_evidence(Evidence) :-
+    findall(
+        QuestionId-Answer,
+        (
+            known_answer(QuestionId, Answer),
+            bayesian_symptom(QuestionId)
+        ),
+        Evidence
+    ).
+
+diagnosis_confidence_percent(CaseId, Percent) :-
+    diagnosis_confidence(CaseId, Probability),
+    Percent is round(Probability * 1000) / 10.
 
 learn_from_console(Path, OldCaseId) :-
     last(Path, step(ParentNode, _, ParentAnswer)),
