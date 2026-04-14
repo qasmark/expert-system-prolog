@@ -247,6 +247,7 @@ show_diagnosis(CaseId, Path) :-
     ; true
     ),
     nl,
+    print_case_frame_context(CaseId),
     writeln("Почему система так решила:"),
     print_path(Path),
     nl,
@@ -413,6 +414,16 @@ kb_case_property(CaseId, Label, Hint) :-
 kb_case_property(CaseId, Label, Hint) :-
     payment_support_base_facts:case_property(CaseId, Label, Hint).
 
+kb_case_slot(CaseId, Slot, Value) :-
+    payment_support_base_facts:case_slot(CaseId, Slot, Value),
+    !.
+kb_case_slot(CaseId, criticality, medium) :-
+    payment_support_learned_facts:case_info(CaseId, _, _, _).
+kb_case_slot(CaseId, source, "Дообученный кейс, добавленный оператором.") :-
+    payment_support_learned_facts:case_info(CaseId, _, _, _).
+kb_case_slot(CaseId, escalation_team, "Оператор поддержки и владелец добавленного кейса.") :-
+    payment_support_learned_facts:case_info(CaseId, _, _, _).
+
 print_path([]) :-
     writeln("  Путь пока пустой.").
 print_path(Path) :-
@@ -424,6 +435,31 @@ print_path(Path) :-
 print_path_step(QuestionId, Answer) :-
     kb_question(QuestionId, Prompt, _),
     format("  - ~w Ответ: ~w~n", [Prompt, Answer]).
+
+print_case_frame_context(CaseId) :-
+    findall(Label-Value, case_context_value(CaseId, Label, Value), Pairs),
+    ( Pairs = [] ->
+        true
+    ; writeln("Фреймовые слоты:"),
+      forall(
+          member(Label-Value, Pairs),
+          format("  - ~w: ~w~n", [Label, Value])
+      ),
+      nl
+    ).
+
+case_context_value(CaseId, "Критичность", Label) :-
+    kb_case_slot(CaseId, criticality, Criticality),
+    criticality_label(Criticality, Label).
+case_context_value(CaseId, "Источник сигнала", Source) :-
+    kb_case_slot(CaseId, source, Source).
+case_context_value(CaseId, "Команда эскалации", Team) :-
+    kb_case_slot(CaseId, escalation_team, Team).
+
+criticality_label(low, "Низкая").
+criticality_label(medium, "Средняя").
+criticality_label(high, "Высокая").
+criticality_label(Criticality, Criticality).
 
 print_case_properties(CaseId) :-
     findall(Label-Hint, kb_case_property(CaseId, Label, Hint), Pairs),
