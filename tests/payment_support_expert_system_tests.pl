@@ -3,6 +3,7 @@
 :- use_module('../payment_support_expert_system.pl').
 :- use_module('../knowledge/base_facts.pl').
 :- use_module('../knowledge/learned_facts.pl').
+:- use_module('../knowledge/bayesian_facts.pl', [diagnosis_probability/3]).
 :- use_module(library(filesex)).
 :- use_module(library(readutil)).
 
@@ -78,6 +79,131 @@ test(bayesian_probability_is_calculated_for_selected_case, [setup(cleanup_state)
     assertion(CaseId == gateway_sbp_failure),
     assertion(Probability > 0.80),
     assertion(Probability < 1.0).
+
+% Обоснование: «массовый сбой» в CPT сильнее согласуется с отказом шлюза (0.90), чем с его
+% отсутствием (0.10). При фиксированном HTTP 5xx апостериорная вероятность gateway_sbp_failure
+% выше, если массовый сбой есть — аналог «при грозе вероятность взлома/сбоя инфраструктуры выше».
+test(bayesian_dependent_mass_issue_increases_posterior_gateway_sbp_vs_no_mass_issue, []) :-
+    diagnosis_probability(
+        gateway_sbp_failure,
+        [mass_issue-yes, http_status_family-http_5xx],
+        P_with_mass
+    ),
+    diagnosis_probability(
+        gateway_sbp_failure,
+        [mass_issue-no, http_status_family-http_5xx],
+        P_without_mass
+    ),
+    assertion(P_with_mass > P_without_mass).
+
+% Обоснование: при массовом сбое индивидуальная антифрод-блокировка маловероятна как объяснение
+% (CPT mass_issue: yes 0.05 против no 0.95). При том же «мягком» HTTP 2xx/timeout уверенность
+% в anti_fraud_block выше, когда массового сбоя нет.
+test(bayesian_dependent_mass_issue_decreases_posterior_anti_fraud_vs_no_mass_issue, []) :-
+    diagnosis_probability(
+        anti_fraud_block,
+        [mass_issue-no, http_status_family-http_2xx_or_timeout],
+        P_no_mass
+    ),
+    diagnosis_probability(
+        anti_fraud_block,
+        [mass_issue-yes, http_status_family-http_2xx_or_timeout],
+        P_mass
+    ),
+    assertion(P_no_mass > P_mass).
+
+% Обоснование: для отказа шлюза HTTP 5xx в CPT существенно вероятнее (0.55), чем 2xx/timeout (0.40).
+% При том же массовом сбое апостериор gateway_sbp_failure выше при кодах 5xx.
+test(bayesian_dependent_http_5xx_increases_posterior_gateway_sbp_vs_2xx, []) :-
+    diagnosis_probability(
+        gateway_sbp_failure,
+        [mass_issue-yes, http_status_family-http_5xx],
+        P_5xx
+    ),
+    diagnosis_probability(
+        gateway_sbp_failure,
+        [mass_issue-yes, http_status_family-http_2xx_or_timeout],
+        P_2xx
+    ),
+    assertion(P_5xx > P_2xx).
+
+% Обоснование: наличие причины отказа в данных (decline_reason_present=yes) для антифрода гораздо
+% типичнее (0.90), чем её отсутствие (0.10). При том же kind=anti_fraud апостериор anti_fraud_block
+% выше, если отказ явно зафиксирован.
+test(bayesian_dependent_decline_reported_increases_posterior_anti_fraud, []) :-
+    diagnosis_probability(
+        anti_fraud_block,
+        [decline_reason_present-yes, decline_reason_kind-anti_fraud],
+        P_decline_yes
+    ),
+    diagnosis_probability(
+        anti_fraud_block,
+        [decline_reason_present-no, decline_reason_kind-anti_fraud],
+        P_decline_no
+    ),
+    assertion(P_decline_yes > P_decline_no).
+
+% Обоснование: для сбоя шлюза явная причина отказа в ответе редка (CPT 0.10 против 0.90), тогда как
+% для других диагнозов она ожидаемее. При том же HTTP 5xx вероятность gateway_sbp_failure ниже,
+% если decline_reason_present=yes.
+test(bayesian_dependent_decline_reported_decreases_posterior_gateway_sbp, []) :-
+    diagnosis_probability(
+        gateway_sbp_failure,
+        [http_status_family-http_5xx, decline_reason_present-no],
+        P_no_decline
+    ),
+    diagnosis_probability(
+        gateway_sbp_failure,
+        [http_status_family-http_5xx, decline_reason_present-yes],
+        P_decline
+    ),
+    assertion(P_no_decline > P_decline).
+
+% Обоснование: ошибка интеграции в CPT сильнее связана с validation_error (0.80), чем с anti_fraud
+% (0.05). Апостериор api_integration_error выше при kind=validation_error при отсутствии прочих признаков.
+test(bayesian_dependent_validation_error_increases_posterior_api_integration_vs_anti_fraud_kind, []) :-
+    diagnosis_probability(
+        api_integration_error,
+        [decline_reason_kind-validation_error],
+        P_validation
+    ),
+    diagnosis_probability(
+        api_integration_error,
+        [decline_reason_kind-anti_fraud],
+        P_anti_fraud
+    ),
+    assertion(P_validation > P_anti_fraud).
+
+% Обоснование: недоставленное SMS 3-D Secure гораздо чаще при ошибке пользователя (0.35), чем
+% успешно отправленное (0.10). Апостериор user_payment_error выше при not_delivered, чем при sent.
+test(bayesian_dependent_sms_not_delivered_increases_posterior_user_payment_vs_sent, []) :-
+    diagnosis_probability(
+        user_payment_error,
+        [sms_3ds_status-not_delivered],
+        P_bad
+    ),
+    diagnosis_probability(
+        user_payment_error,
+        [sms_3ds_status-sent],
+        P_ok
+    ),
+    assertion(P_bad > P_ok).
+
+% Обоснование: для user_payment_error коды 4xx в CPT чуть вероятнее (0.10), чем 5xx (0.05); при прочих
+% равных апостериор user_payment_error выше при http_4xx, чем при http_5xx (зависимое событие
+% «семейство HTTP» сдвигает баланс в пользу пользовательской/клиентской ошибки).
+test(bayesian_dependent_http_4xx_increases_posterior_user_payment_vs_5xx, []) :-
+    diagnosis_probability(
+        user_payment_error,
+        [http_status_family-http_4xx],
+        P_4xx
+    ),
+    diagnosis_probability(
+        user_payment_error,
+        [http_status_family-http_5xx],
+        P_5xx
+    ),
+    assertion(P_4xx > P_5xx).
 
 test(learned_branch_is_added_via_assertz, [setup(cleanup_state), cleanup(cleanup_state)]) :-
     seed_manual_bank_hold,
