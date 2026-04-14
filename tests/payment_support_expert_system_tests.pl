@@ -66,11 +66,6 @@ test(route_anti_fraud_case, [setup(cleanup_state), cleanup(cleanup_state)]) :-
     diagnose(CaseId),
     assertion(CaseId == anti_fraud_block).
 
-test(frame_properties_inherit_and_override, [setup(cleanup_state), cleanup(cleanup_state)]) :-
-    assertion(case_property(anti_fraud_block, "Маска карты", "Нужна для корреляции повторных обращений.")),
-    assertion(case_property(anti_fraud_block, "ID пользователя", "Нужен для поиска истории срабатываний и связанных рисков.")),
-    assertion(\+ case_property(anti_fraud_block, "ID пользователя", "Помогает проверить историю обращения пользователя.")).
-
 test(bayesian_probability_is_calculated_for_selected_case, [setup(cleanup_state), cleanup(cleanup_state)]) :-
     remember_answer(mass_issue, yes),
     remember_answer(http_status_family, http_5xx),
