@@ -51,23 +51,36 @@ swipl -q -s .\payment_support_expert_system.pl
 
 - `title`
 - `explanation`
-- `recommendation`
+- `recommended_action`
+- `criticality`
+- `source`
+- `escalation_team`
 - `property(<slot_key>)`
 
-Для общих доменных групп заведены родительские фреймы:
+Для общих доменных групп заведены родительские фреймы второго уровня:
 
+- `system_issue` — корневой фрейм с общими слотами `criticality`, `source`, `escalation_team`
 - `integration_case`
 - `user_payment_case`
 - `mass_incident_case`
+- `generic_support_case`
+
+У каждого прикладного кейса теперь есть:
+
+- минимум 2 унаследованных слота, например `source` и `escalation_team`
+- минимум 2 собственных слота, например `title`, `explanation`, `recommended_action`
+- собственные и унаследованные `property(...)`-слоты с признаками для оператора
 
 Примеры использования:
 
 - `anti_fraud_block` наследует общие свойства от `user_payment_case`
+- `anti_fraud_block` наследует `source` от `user_payment_case`, но переопределяет `criticality` в `high`
 - `anti_fraud_block` переопределяет слот `property(user_id)`, задавая более точную подсказку
-- `gateway_sbp_failure` наследует признаки массового инцидента от `mass_incident_case`
+- `gateway_sbp_failure` наследует `source` и `escalation_team` от `mass_incident_case`, а `criticality` переопределяет в `high`
+- `user_payment_error` наследует признаки пользовательского кейса, но переопределяет `criticality` в `low`
 - `api_integration_error` наследует интеграционные признаки от `integration_case` и переопределяет описание HTTP-статуса
 
-За счет этого в пользовательском сценарии выводятся уже унаследованные и переопределенные признаки, без дублирования в каждом кейсе.
+За счет этого в пользовательском сценарии выводятся уже унаследованные и переопределенные признаки, без дублирования в каждом кейсе. В итоговой диагностике дополнительно печатаются ключевые фреймовые слоты: критичность, источник сигнала и команда эскалации.
 
 ## Как устроена байесовская сеть
 
